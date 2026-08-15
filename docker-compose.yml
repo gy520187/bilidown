@@ -1,0 +1,21 @@
+services:
+  bilidown:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # 国内镜像加速, 解决 Docker Hub 无法访问问题
+        # 如果已配置 daemon.json 镜像加速, 可改为空字符串 ""
+        # 可用镜像源(2026年8月): docker.1ms.run / dockerproxy.net / docker.m.daocloud.io
+        REGISTRY_MIRROR: "docker.1ms.run/"
+    container_name: bilidown
+    restart: unless-stopped
+    ports:
+      - "8098:8098"
+    volumes:
+      # 数据库持久化 (data.db 通过软链接存储在此目录)
+      - /volume2/docker/bilidown/data:/app/data
+      # 下载的视频文件输出到宿主机此目录
+      - /volume2/video/Download/Bilibili:/app/download
+    environment:
+      - TZ=Asia/Shanghai

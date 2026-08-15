@@ -1,0 +1,15 @@
+node_modules/
+dist/
+tmp/
+build/
+static/
+*.db
+*.exe
+download/
+bin/
+.git/
+.vscode/
+.claude/
+.VSCodeCounter/
+docs/
+*.zip
