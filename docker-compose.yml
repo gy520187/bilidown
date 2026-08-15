@@ -14,8 +14,8 @@ services:
       - "8098:8098"
     volumes:
       # 数据库持久化 (data.db 通过软链接存储在此目录)
-      - ../data:/app/data
+      - ./data:/app/data
       # 下载的视频文件输出到宿主机此目录
-      - ../Download:/app/download
+      - ./Download:/app/download
     environment:
       - TZ=Asia/Shanghai
