@@ -45,7 +45,7 @@ type QRInfo struct {
 }
 
 type QRStatus struct {
-	URL          string `json:"string"`
+	URL          string `json:"url"`
 	RefreshToken string `json:"refresh_token"`
 	Code         int    `json:"code"`
 	Message      string `json:"message"`

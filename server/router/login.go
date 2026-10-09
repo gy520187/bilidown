@@ -12,7 +12,7 @@ import (
 
 func getQRInfo(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
-	client := bilibili.BiliClient{}
+	client := bilibili.BiliClient{Jar: bilibili.NewQRJar()}
 	qrInfo, err := client.NewQRInfo()
 	if err != nil {
 		util.Res{Success: false, Message: err.Error()}.Write(w)

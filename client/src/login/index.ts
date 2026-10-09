@@ -52,25 +52,30 @@ export default () => {
 
             // 当前活动的二维码标识
             let qrKey = ''
+            let refreshing = false
 
             /** 刷新二维码 */
             const refreshQR = async () => {
+                if (refreshing) return
+                refreshing = true
                 try {
                     const qrInfo = await getQRInfo()
-                    // 更新二维码组件内容
                     qrSrc.val = qrInfo.image
-                    // 更新当前活动的二维码标识
                     qrKey = qrInfo.key
+                    errorMessage.val = ''
+                    qrStatusMessage.val = ''
                 } catch (error) {
-                    // 加载二维码时失败
                     errorMessage.val = `加载二维码失败，请刷新页面重试`
                     clearTimeout(timer)
                     clearTimeout(statusTimer)
+                } finally {
+                    refreshing = false
                 }
             }
 
             /** 检查二维码状态 */
             const checkQRStatus = async () => {
+                if (!qrKey) return
                 try {
                     const status = await getQRStatus(qrKey)
                     if (status.success) {
@@ -81,6 +86,9 @@ export default () => {
                         window.location.href = url.toString()
                     } else {
                         qrStatusMessage.val = status.message
+                        if (status.message && status.message.includes('失效')) {
+                            await refreshQR()
+                        }
                     }
                 } catch (error) {
                     // 出错了，显示错误信息

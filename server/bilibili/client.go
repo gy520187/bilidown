@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/cookiejar"
 	"net/url"
 	"regexp"
+	"sync"
 	"time"
 
 	"bilidown/util"
@@ -14,9 +16,17 @@ import (
 
 type BiliClient struct {
 	SESSDATA string
+	Jar      http.CookieJar
 	mixinKey string
 	mixinAt  time.Time
 }
+
+type qrLoginSession struct {
+	jar http.CookieJar
+	at  time.Time
+}
+
+var qrLoginSessions sync.Map
 
 const defaultUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 
@@ -47,6 +57,7 @@ func (client *BiliClient) doGET(_url string, values url.Values) (*http.Response,
 		Transport: &http.Transport{
 			Proxy: http.ProxyURL(nil),
 		},
+		Jar: client.Jar,
 	}
 	request, err := http.NewRequest("GET", _url+query, nil)
 	if err != nil {
@@ -64,6 +75,7 @@ func (client *BiliClient) MakeHeader() http.Header {
 	}
 	header.Set("User-Agent", defaultUserAgent)
 	header.Set("Referer", "https://www.bilibili.com/")
+	header.Set("Origin", "https://www.bilibili.com")
 	return header
 }
 
@@ -87,7 +99,9 @@ func (client *BiliClient) CheckLogin() (bool, error) {
 
 // NewQRInfo 获取登录二维码信息
 func (client *BiliClient) NewQRInfo() (*QRInfo, error) {
-	response, err := client.SimpleGET("https://passport.bilibili.com/x/passport-login/web/qrcode/generate", nil)
+	response, err := client.SimpleGET("https://passport.bilibili.com/x/passport-login/web/qrcode/generate", map[string]string{
+		"source": "main-fe-header",
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +119,42 @@ func (client *BiliClient) NewQRInfo() (*QRInfo, error) {
 	if err != nil {
 		return nil, err
 	}
+	if qrInfo.QrcodeKey != "" && client.Jar != nil {
+		qrLoginSessions.Store(qrInfo.QrcodeKey, &qrLoginSession{jar: client.Jar, at: time.Now()})
+	}
 	return &qrInfo, nil
+}
+
+func NewQRJar() http.CookieJar {
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		return nil
+	}
+	return jar
+}
+
+func loadQRJar(qrKey string) http.CookieJar {
+	purgeExpiredQRSessions()
+	value, ok := qrLoginSessions.Load(qrKey)
+	if !ok {
+		return NewQRJar()
+	}
+	session, ok := value.(*qrLoginSession)
+	if !ok || session == nil || session.jar == nil {
+		return NewQRJar()
+	}
+	return session.jar
+}
+
+func purgeExpiredQRSessions() {
+	cutoff := time.Now().Add(-10 * time.Minute)
+	qrLoginSessions.Range(func(key, value any) bool {
+		session, ok := value.(*qrLoginSession)
+		if !ok || session == nil || session.at.Before(cutoff) {
+			qrLoginSessions.Delete(key)
+		}
+		return true
+	})
 }
 
 func (client *BiliClient) getWbiKeyRemote() (wbiKey string, err error) {
@@ -138,8 +187,12 @@ func (client *BiliClient) getWbiKeyRemote() (wbiKey string, err error) {
 
 // GetQRStatus 获取二维码状态
 func (client *BiliClient) GetQRStatus(qrKey string) (qrStatus *QRStatus, sessdata string, err error) {
+	if client.Jar == nil {
+		client.Jar = loadQRJar(qrKey)
+	}
 	params := map[string]string{
 		"qrcode_key": qrKey,
+		"source":     "main-fe-header",
 	}
 	response, err := client.SimpleGET("https://passport.bilibili.com/x/passport-login/web/qrcode/poll", params)
 	if err != nil {
@@ -163,9 +216,15 @@ func (client *BiliClient) GetQRStatus(qrKey string) (qrStatus *QRStatus, sessdat
 		return qrStatus, "", nil
 	}
 	sessdata, err = GetCookieValue(response.Cookies(), "SESSDATA")
+	if err != nil && client.Jar != nil {
+		if parsed, parseErr := url.Parse("https://passport.bilibili.com"); parseErr == nil {
+			sessdata, err = GetCookieValue(client.Jar.Cookies(parsed), "SESSDATA")
+		}
+	}
 	if err != nil {
 		return nil, "", err
 	}
+	qrLoginSessions.Delete(qrKey)
 	return qrStatus, sessdata, nil
 }
 
