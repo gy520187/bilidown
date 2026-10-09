@@ -83,9 +83,63 @@ func InitTables(db *sql.DB) error {
 	)`); err != nil {
 		return err
 	}
-	_, _ = db.Exec(`ALTER TABLE "subscription" ADD COLUMN "cron" TEXT NOT NULL DEFAULT '0 8 * * *'`)
-	_, _ = db.Exec(`ALTER TABLE "subscription" ADD COLUMN "section_ids" TEXT NOT NULL DEFAULT ''`)
+	return migrateSubscriptionColumns(db)
+}
+
+func migrateSubscriptionColumns(db *sql.DB) error {
+	columns, err := tableColumns(db, "subscription")
+	if err != nil {
+		return err
+	}
+	for _, col := range []struct {
+		name string
+		ddl  string
+	}{
+		{"type", `ALTER TABLE "subscription" ADD COLUMN "type" TEXT NOT NULL DEFAULT ''`},
+		{"mid", `ALTER TABLE "subscription" ADD COLUMN "mid" TEXT NOT NULL DEFAULT ''`},
+		{"resource_id", `ALTER TABLE "subscription" ADD COLUMN "resource_id" TEXT NOT NULL DEFAULT ''`},
+		{"title", `ALTER TABLE "subscription" ADD COLUMN "title" TEXT NOT NULL DEFAULT ''`},
+		{"cover", `ALTER TABLE "subscription" ADD COLUMN "cover" TEXT NOT NULL DEFAULT ''`},
+		{"owner", `ALTER TABLE "subscription" ADD COLUMN "owner" TEXT NOT NULL DEFAULT ''`},
+		{"enabled", `ALTER TABLE "subscription" ADD COLUMN "enabled" INTEGER NOT NULL DEFAULT 1`},
+		{"download_type", `ALTER TABLE "subscription" ADD COLUMN "download_type" TEXT NOT NULL DEFAULT 'merge'`},
+		{"format", `ALTER TABLE "subscription" ADD COLUMN "format" INTEGER NOT NULL DEFAULT 80`},
+		{"cron", `ALTER TABLE "subscription" ADD COLUMN "cron" TEXT NOT NULL DEFAULT '0 8 * * *'`},
+		{"section_ids", `ALTER TABLE "subscription" ADD COLUMN "section_ids" TEXT NOT NULL DEFAULT ''`},
+		{"last_check_at", `ALTER TABLE "subscription" ADD COLUMN "last_check_at" TEXT NOT NULL DEFAULT ''`},
+		{"last_check_status", `ALTER TABLE "subscription" ADD COLUMN "last_check_status" TEXT NOT NULL DEFAULT ''`},
+		{"last_error", `ALTER TABLE "subscription" ADD COLUMN "last_error" TEXT NOT NULL DEFAULT ''`},
+		{"created_at", `ALTER TABLE "subscription" ADD COLUMN "created_at" TEXT NOT NULL DEFAULT ''`},
+	} {
+		if columns[col.name] {
+			continue
+		}
+		if _, err := db.Exec(col.ddl); err != nil {
+			return err
+		}
+	}
+	_, _ = db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS "subscription_type_resource" ON "subscription" ("type", "resource_id")`)
 	return nil
+}
+
+func tableColumns(db *sql.DB, table string) (map[string]bool, error) {
+	rows, err := db.Query(`PRAGMA table_info("` + table + `")`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	columns := map[string]bool{}
+	for rows.Next() {
+		var cid int
+		var name, ctype string
+		var notnull, pk int
+		var dflt sql.NullString
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dflt, &pk); err != nil {
+			return nil, err
+		}
+		columns[strings.ToLower(name)] = true
+	}
+	return columns, rows.Err()
 }
 
 func encodeSectionIDs(ids []string) string {
