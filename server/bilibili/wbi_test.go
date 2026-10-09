@@ -9,6 +9,47 @@ import (
 	"time"
 )
 
+func TestMixinKeyFromWbiKey(t *testing.T) {
+	imgKey := "7cd084941338484aae1ad880f20e7749"
+	subKey := "4932caff0ff746eab6f01bf08b70ac45"
+	mixinKey, err := mixinKeyFromWbiKey(imgKey + subKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mixinKey != "ea1db104af397062e74693fa774f4ff8" {
+		t.Fatalf("unexpected mixin key: %s", mixinKey)
+	}
+}
+
+func TestFilterWbiValue(t *testing.T) {
+	got := filterWbiValue("foo!'()*bar")
+	if got != "foobar" {
+		t.Fatalf("unexpected filtered value: %s", got)
+	}
+}
+
+func TestWbiSignContainsRequiredParams(t *testing.T) {
+	values := WbiSign(map[string]string{
+		"mid":       "123",
+		"season_id": "456",
+	}, "ea1db124af3c7062474693fa704f4ff8")
+	if values.Get("wts") == "" {
+		t.Fatal("missing wts")
+	}
+	if len(values.Get("w_rid")) != 32 {
+		t.Fatalf("unexpected w_rid: %s", values.Get("w_rid"))
+	}
+	if values.Get("mid") != "123" || values.Get("season_id") != "456" {
+		t.Fatalf("original params lost: %s", values.Encode())
+	}
+}
+
+func TestMixinKeyFromWbiKeyTooShort(t *testing.T) {
+	if _, err := mixinKeyFromWbiKey("short"); err == nil {
+		t.Fatal("expected error for short wbi key")
+	}
+}
+
 func TestGetWbiKey(t *testing.T) {
 	db := util.MustGetDB("../data.db")
 	defer db.Close()

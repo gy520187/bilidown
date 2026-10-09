@@ -10,7 +10,8 @@
 -   【番剧和影视剧】https://www.bilibili.com/bangumi/play/ss48831
 -   【视频合集】https://space.bilibili.com/282565107/channel/collectiondetail?sid=1427135
 -   【收藏夹】https://space.bilibili.com/1176277996/favlist?fid=1234122612
--   【UP 主空间地址】等待 3.x 版本支持
+-   【UP 主空间地址】可在订阅页添加，按该订阅自己的 cron 自动检查新稿件
+-   【订阅】合集、系列、收藏夹、UP 空间、番剧季，以及合集中的视频或 b23.tv 短链，每条订阅可设独立 cron，默认每天 08:00
 
 ## 使用说明
 

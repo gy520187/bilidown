@@ -135,7 +135,8 @@ export type VideoInfo = {
             title: string
             episodes: {
                 title: string
-                pages: PageInVideoInfo[]
+                pages?: PageInVideoInfo[]
+                cid?: number
                 bvid: string
             }[]
         }[] | null

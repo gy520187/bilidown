@@ -17,6 +17,9 @@ export default () => {
                 a({ class: classStr('task'), href: '#/task' }, '任务列表')
             ),
             div({ class: 'nav-item', hidden: () => !GLOBAL_HAS_LOGIN.val },
+                a({ class: classStr('subscribe'), href: '#/subscribe' }, '订阅')
+            ),
+            div({ class: 'nav-item', hidden: () => !GLOBAL_HAS_LOGIN.val },
                 a({ class: classStr('setting'), href: '#/setting' }, '设置中心')
             ),
             div({ class: 'nav-item', hidden: GLOBAL_HAS_LOGIN },

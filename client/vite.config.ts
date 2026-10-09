@@ -6,7 +6,8 @@ export default defineConfig({
         proxy: {
             '/api': 'http://127.0.0.1:8098'
         },
-        host: '0.0.0.0'
+        host: '0.0.0.0',
+        allowedHosts: ['.monkeycode-ai.online']
     },
     build: {
         outDir: '../server/static',

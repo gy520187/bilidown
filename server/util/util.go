@@ -72,6 +72,7 @@ func GetRedirectedLocation(url string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	request.Header.Set("User-Agent", "Mozilla/5.0")
 	response, err := client.Do(request)
 	if err != nil {
 		return "", err

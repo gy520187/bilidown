@@ -7,13 +7,18 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"time"
 
 	"bilidown/util"
 )
 
 type BiliClient struct {
 	SESSDATA string
+	mixinKey string
+	mixinAt  time.Time
 }
+
+const defaultUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 
 // SimpleGET 简单的 GET 请求
 func (client *BiliClient) SimpleGET(_url string, params map[string]string) (*http.Response, error) {
@@ -21,12 +26,29 @@ func (client *BiliClient) SimpleGET(_url string, params map[string]string) (*htt
 	for k, v := range params {
 		values.Set(k, v)
 	}
+	return client.doGET(_url, values)
+}
+
+// SignedGET 带 WBI 签名的 GET 请求
+func (client *BiliClient) SignedGET(_url string, params map[string]string) (*http.Response, error) {
+	mixinKey, err := client.ensureMixinKey()
+	if err != nil {
+		return nil, err
+	}
+	return client.doGET(_url, WbiSign(params, mixinKey))
+}
+
+func (client *BiliClient) doGET(_url string, values url.Values) (*http.Response, error) {
+	query := ""
+	if len(values) > 0 {
+		query = "?" + values.Encode()
+	}
 	_client := http.Client{
 		Transport: &http.Transport{
 			Proxy: http.ProxyURL(nil),
 		},
 	}
-	request, err := http.NewRequest("GET", _url+"?"+values.Encode(), nil)
+	request, err := http.NewRequest("GET", _url+query, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -37,9 +59,11 @@ func (client *BiliClient) SimpleGET(_url string, params map[string]string) (*htt
 // MakeHeader 生成请求头
 func (client *BiliClient) MakeHeader() http.Header {
 	header := http.Header{}
-	header.Set("Cookie", "SESSDATA="+client.SESSDATA)
-	header.Set("User-Agent", "Mozilla/5.0")
-	header.Set("Referer", "https://www.bilibili.com")
+	if client.SESSDATA != "" {
+		header.Set("Cookie", "SESSDATA="+client.SESSDATA)
+	}
+	header.Set("User-Agent", defaultUserAgent)
+	header.Set("Referer", "https://www.bilibili.com/")
 	return header
 }
 
@@ -85,9 +109,6 @@ func (client *BiliClient) NewQRInfo() (*QRInfo, error) {
 }
 
 func (client *BiliClient) getWbiKeyRemote() (wbiKey string, err error) {
-	if client.SESSDATA == "" {
-		return "", errors.New("SESSDATA 不能为空")
-	}
 	response, err := client.SimpleGET("https://api.bilibili.com/x/web-interface/nav", nil)
 	if err != nil {
 		return "", err
@@ -107,12 +128,12 @@ func (client *BiliClient) getWbiKeyRemote() (wbiKey string, err error) {
 		return "", err
 	}
 	match := regexp.MustCompile(`/bfs/wbi/([a-z0-9]+)\.`)
-	imgKey := match.FindStringSubmatch(data.WbiImg.ImgURL)[1]
-	subKey := match.FindStringSubmatch(data.WbiImg.SubURL)[1]
-	if imgKey == "" || subKey == "" {
-		return "", errors.New("regexp.MustCompile(`/bfs/wbi/([a-z0-9])\\.`)")
+	imgMatch := match.FindStringSubmatch(data.WbiImg.ImgURL)
+	subMatch := match.FindStringSubmatch(data.WbiImg.SubURL)
+	if len(imgMatch) < 2 || len(subMatch) < 2 {
+		return "", errors.New("解析 wbi key 失败")
 	}
-	return imgKey + subKey, nil
+	return imgMatch[1] + subMatch[1], nil
 }
 
 // GetQRStatus 获取二维码状态

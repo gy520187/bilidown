@@ -3,6 +3,7 @@ package bilibili
 import (
 	"bilidown/util"
 	"database/sql"
+	"errors"
 	"net/url"
 	"strconv"
 	"strings"
@@ -40,17 +41,52 @@ func (client *BiliClient) GetMixinKey(db *sql.DB) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	var result string
-	for _, index := range MIXIN_KEY_ENC_TAB {
-		result += string(wbiKey[index])
+	return mixinKeyFromWbiKey(wbiKey)
+}
+
+func (client *BiliClient) ensureMixinKey() (string, error) {
+	if client.mixinKey != "" && time.Since(client.mixinAt) < time.Hour {
+		return client.mixinKey, nil
 	}
-	return result[:32], nil
+	wbiKey, err := client.getWbiKeyRemote()
+	if err != nil {
+		return "", err
+	}
+	mixinKey, err := mixinKeyFromWbiKey(wbiKey)
+	if err != nil {
+		return "", err
+	}
+	client.mixinKey = mixinKey
+	client.mixinAt = time.Now()
+	return mixinKey, nil
+}
+
+func filterWbiValue(s string) string {
+	return strings.Map(func(r rune) rune {
+		switch r {
+		case '!', '\'', '(', ')', '*':
+			return -1
+		default:
+			return r
+		}
+	}, s)
+}
+
+func mixinKeyFromWbiKey(wbiKey string) (string, error) {
+	if len(wbiKey) < 64 {
+		return "", errors.New("wbi key 长度不足")
+	}
+	var result strings.Builder
+	for _, index := range MIXIN_KEY_ENC_TAB {
+		result.WriteByte(wbiKey[index])
+	}
+	return result.String()[:32], nil
 }
 
 func WbiSign(params map[string]string, mixinKey string) url.Values {
 	values := url.Values{}
 	for key, value := range params {
-		values.Set(key, value)
+		values.Set(key, filterWbiValue(value))
 	}
 	wts := strconv.FormatInt(time.Now().Unix(), 10)
 	values.Set("wts", wts)

@@ -1,14 +1,14 @@
 package router
 
 import (
+	"bilidown/bilibili"
+	"bilidown/util"
+	"bilidown/util/res_error"
 	"fmt"
 	"net/http"
 	"path/filepath"
 	"strconv"
 	"strings"
-	"bilidown/bilibili"
-	"bilidown/util"
-	"bilidown/util/res_error"
 )
 
 // getVideoInfo 通过 BV 号获取视频信息
@@ -150,10 +150,45 @@ var getSeasonsArchivesListFirstBvid = http.HandlerFunc(func(w http.ResponseWrite
 		res_error.Send(w, res_error.SeasonIdFormatError)
 		return
 	}
-	client := bilibili.BiliClient{}
+	db := util.MustGetDB()
+	defer db.Close()
+	sessdata, err := bilibili.GetSessdata(db)
+	if err != nil || sessdata == "" {
+		res_error.Send(w, res_error.NotLogin)
+		return
+	}
+	client := bilibili.BiliClient{SESSDATA: sessdata}
 	bvid, err := client.GetSeasonsArchivesListFirstBvid(mid, seasonId)
 	if err != nil {
 		res_error.Send(w, fmt.Sprintf("client.GetSeasonsArchivesList: %v", err))
+		return
+	}
+	util.Res{Success: true, Message: "获取成功", Data: bvid}.Write(w)
+})
+
+var getSeriesFirstBvid = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	var mid int
+	var seriesId int
+	var err error
+	if mid, err = strconv.Atoi(r.URL.Query().Get("mid")); err != nil {
+		res_error.Send(w, res_error.MidFormatError)
+		return
+	}
+	if seriesId, err = strconv.Atoi(r.URL.Query().Get("seriesId")); err != nil {
+		res_error.Send(w, res_error.SeasonIdFormatError)
+		return
+	}
+	db := util.MustGetDB()
+	defer db.Close()
+	sessdata, err := bilibili.GetSessdata(db)
+	if err != nil || sessdata == "" {
+		res_error.Send(w, res_error.NotLogin)
+		return
+	}
+	client := bilibili.BiliClient{SESSDATA: sessdata}
+	bvid, err := client.GetSeriesFirstBvid(mid, seriesId)
+	if err != nil {
+		res_error.Send(w, fmt.Sprintf("client.GetSeriesFirstBvid: %v", err))
 		return
 	}
 	util.Res{Success: true, Message: "获取成功", Data: bvid}.Write(w)

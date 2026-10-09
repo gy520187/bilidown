@@ -118,15 +118,19 @@ type VideoInfo struct {
 		Dislike  int `json:"dislike"`  // 不喜欢
 	} `json:"stat"`
 	UgcSeason struct {
+		ID       int64  `json:"id"`
+		Mid      int64  `json:"mid"`
+		Title    string `json:"title"`
+		Cover    string `json:"cover"`
 		Sections []struct {
 			Title    string `json:"title"`
 			Episodes []struct {
 				Title string `json:"title"`
 				Pages []Page `json:"pages"`
 				Bvid  string `json:"bvid"`
+				Cid   int    `json:"cid"`
 			} `json:"episodes"`
 		} `json:"sections"`
-		Title string `json:"title"`
 	} `json:"ugc_season"`
 }
 

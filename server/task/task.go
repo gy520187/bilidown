@@ -73,6 +73,7 @@ var GlobalTaskList = []*Task{}
 var GlobalTaskMux = &sync.Mutex{}
 var GlobalDownloadSem = util.NewSemaphore(3)
 var GlobalMergeSem = util.NewSemaphore(3)
+var OnDone func(task *Task)
 
 func (task *Task) Create(db *sql.DB) error {
 	util.SqliteLock.Lock()
@@ -303,6 +304,9 @@ func (task *Task) UpdateStatus(db *sql.DB, status TaskStatus, errs ...error) err
 		}
 	}
 	task.Status = status
+	if status == "done" && OnDone != nil {
+		go OnDone(task)
+	}
 	return err
 }
 

@@ -15,7 +15,7 @@ func (client *BiliClient) GetVideoInfo(bvid string) (*VideoInfo, error) {
 		return nil, errors.New("SESSDATA 不能为空")
 	}
 	params := map[string]string{"bvid": bvid}
-	response, err := client.SimpleGET("https://api.bilibili.com/x/web-interface/wbi/view", params)
+	response, err := client.SignedGET("https://api.bilibili.com/x/web-interface/wbi/view", params)
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +76,7 @@ func (client *BiliClient) GetPlayInfo(bvid string, cid int) (*PlayInfo, error) {
 		"fnver": "0",
 		"fourk": "1",
 	}
-	response, err := client.SimpleGET("https://api.bilibili.com/x/player/playurl", params)
+	response, err := client.SignedGET("https://api.bilibili.com/x/player/wbi/playurl", params)
 	if err != nil {
 		return nil, err
 	}
@@ -132,15 +132,19 @@ func (client *BiliClient) GetPopularVideos() ([]VideoInfo, error) {
 
 // GetSeasonsArchivesList 获取合集中的第一个视频的 BVID
 func (client *BiliClient) GetSeasonsArchivesListFirstBvid(mid int, seasonId int) (string, error) {
+	if client.SESSDATA == "" {
+		return "", errors.New("SESSDATA 不能为空")
+	}
 	url := "https://api.bilibili.com/x/polymer/web-space/seasons_archives_list"
 	params := map[string]string{
-		"mid":       strconv.Itoa(mid),
-		"season_id": strconv.Itoa(seasonId),
-		"page_num":  "1",
-		"page_size": "1",
+		"mid":          strconv.Itoa(mid),
+		"season_id":    strconv.Itoa(seasonId),
+		"page_num":     "1",
+		"page_size":    "1",
+		"sort_reverse": "false",
 	}
 
-	response, err := client.SimpleGET(url, params)
+	response, err := client.SignedGET(url, params)
 	if err != nil {
 		return "", err
 	}
@@ -159,7 +163,45 @@ func (client *BiliClient) GetSeasonsArchivesListFirstBvid(mid int, seasonId int)
 		} `json:"archives"`
 	}
 	if err = json.Unmarshal(body.Data, &data); err != nil {
-		return "", nil
+		return "", err
+	}
+	if len(data.Archives) == 0 {
+		return "", errors.New("视频列表为空")
+	}
+	return data.Archives[0].Bvid, nil
+}
+
+// GetSeriesFirstBvid 获取视频列表（系列）中的第一个视频的 BVID
+func (client *BiliClient) GetSeriesFirstBvid(mid int, seriesId int) (string, error) {
+	if client.SESSDATA == "" {
+		return "", errors.New("SESSDATA 不能为空")
+	}
+	params := map[string]string{
+		"mid":       strconv.Itoa(mid),
+		"series_id": strconv.Itoa(seriesId),
+		"pn":        "1",
+		"ps":        "1",
+	}
+	response, err := client.SignedGET("https://api.bilibili.com/x/series/archives", params)
+	if err != nil {
+		return "", err
+	}
+	defer response.Body.Close()
+
+	body := BaseResV2{}
+	if err = json.NewDecoder(response.Body).Decode(&body); err != nil {
+		return "", err
+	}
+	if body.Code != 0 {
+		return "", errors.New(body.Message)
+	}
+	var data struct {
+		Archives []struct {
+			Bvid string `json:"bvid"`
+		} `json:"archives"`
+	}
+	if err = json.Unmarshal(body.Data, &data); err != nil {
+		return "", err
 	}
 	if len(data.Archives) == 0 {
 		return "", errors.New("视频列表为空")

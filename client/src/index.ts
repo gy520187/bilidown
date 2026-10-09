@@ -5,6 +5,7 @@ import Work from './work'
 import Task from './task'
 import Login from './login'
 import Setting from './setting'
+import Subscribe from './subscribe'
 import _Error from './error'
 import { redirect } from 'vanjs-router'
 import { GLOBAL_HIDE_PAGE } from './mixin'
@@ -21,6 +22,7 @@ van.add(document.body,
         Header(),
         Work(),
         Task(),
+        Subscribe(),
         Login(),
         Setting(),
     ),

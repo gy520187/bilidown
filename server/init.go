@@ -8,14 +8,16 @@ import (
 	"time"
 
 	"bilidown/router"
+	"bilidown/subscription"
+	"bilidown/task"
 	"bilidown/util"
 
 	_ "modernc.org/sqlite"
 )
 
 const (
-	HTTP_PORT = 8098      // 限定 HTTP 服务器端口
-	HTTP_HOST = ""        // 限定 HTTP 服务器主机
+	HTTP_PORT = 8098     // 限定 HTTP 服务器端口
+	HTTP_HOST = ""       // 限定 HTTP 服务器主机
 	VERSION   = "v2.1.1" // 软件版本号，将影响托盘标题显示
 )
 
@@ -43,6 +45,7 @@ func mustRunServer() {
 			log.Fatal("http.ListenAndServe:", err)
 		}
 	}()
+	subscription.StartScheduler()
 }
 
 // mustInitTables 初始化数据表
@@ -89,6 +92,12 @@ func mustInitTables() {
 	if err := initHistoryTask(db); err != nil {
 		log.Fatalln("initHistoryTask:", err)
 	}
+
+	if err := subscription.InitTables(db); err != nil {
+		log.Fatalln("subscription.InitTables:", err)
+	}
+
+	task.OnDone = subscription.WriteTaskNFO
 
 	// 添加可能缺失的列（用于数据库迁移）
 	if err := addMissingColumns(db); err != nil {

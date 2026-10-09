@@ -31,7 +31,14 @@ func API() *http.ServeMux {
 	router.HandleFunc("/getRedirectedLocation", getRedirectedLocation)
 	router.HandleFunc("/downloadVideo", downloadVideo)
 	router.HandleFunc("/getSeasonsArchivesListFirstBvid", getSeasonsArchivesListFirstBvid)
+	router.HandleFunc("/getSeriesFirstBvid", getSeriesFirstBvid)
 	router.HandleFunc("/getFavList", getFavList)
+	router.HandleFunc("/getSubscriptions", getSubscriptions)
+	router.HandleFunc("/previewSubscription", previewSubscription)
+	router.HandleFunc("/createSubscription", createSubscription)
+	router.HandleFunc("/updateSubscription", updateSubscription)
+	router.HandleFunc("/deleteSubscription", deleteSubscription)
+	router.HandleFunc("/runSubscriptionCheck", runSubscriptionCheck)
 	return router
 }
 
