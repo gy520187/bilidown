@@ -35,6 +35,7 @@ func createTask(w http.ResponseWriter, r *http.Request) {
 		}
 		if item.Cover == "" || item.Title == "" || item.Owner == "" {
 			util.Res{Success: false, Message: "参数错误"}.Write(w)
+			return
 		}
 
 		if !util.IsValidURL(item.Cover) {
@@ -60,7 +61,7 @@ func createTask(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		_task := task.Task{TaskInDB: item}
-		_task.Title = util.FilterFileName(_task.Title)
+		_task.Title, _task.RelDir = util.SplitOutRelDir(_task.Title, _task.RelDir)
 		err = _task.Create(db)
 		if err != nil {
 			util.Res{Success: false, Message: fmt.Sprintf("_task.Create: %v.", err)}.Write(w)

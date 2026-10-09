@@ -59,6 +59,12 @@ export type VideoParseResult = {
     styles: string[]
     /** 播放页面 */
     targetURL: string
+    /** 番剧季标题，例如「第一季」 */
+    seasonTitle: string
+    /** 原名 / 英文名 */
+    originName: string
+    /** 首播年份 */
+    year: number
 }
 
 export type SectionItem = {
@@ -157,6 +163,9 @@ export type SeasonInfo = {
         is_finish: number
         pub_time: string
     };
+    origin_name?: string
+    subtitle?: string
+    alias?: string
     season_id: number
     season_title: string
     stat: {
@@ -246,6 +255,7 @@ export type TaskInitData = {
     video: string
     duration: number
     downloadType: 'audio' | 'video' | 'merge'
+    relDir?: string
 }
 
 /** 任务数据库中的数据 */

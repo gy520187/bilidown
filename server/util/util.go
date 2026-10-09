@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
 
 	"bilidown/common"
 )
@@ -48,6 +49,38 @@ func IsValidFormatCode(format common.MediaFormat) bool {
 // FilterFileName 过滤字符串中的特殊字符，使其允许作为文件名。
 func FilterFileName(fileName string) string {
 	return regexp.MustCompile(`[\\/:*?"<>|\n]`).ReplaceAllString(fileName, "")
+}
+
+// SanitizeRelDir 清洗相对目录，去掉 . / .. 以及非法文件名字符，段与段之间用 /。
+func SanitizeRelDir(rel string) string {
+	rel = strings.ReplaceAll(rel, "\\", "/")
+	parts := make([]string, 0, 4)
+	for _, p := range strings.Split(rel, "/") {
+		p = FilterFileName(strings.TrimSpace(p))
+		if p == "" || p == "." || p == ".." {
+			continue
+		}
+		parts = append(parts, p)
+	}
+	return strings.Join(parts, "/")
+}
+
+// SplitOutRelDir 把误写进标题的相对目录拆出来，标题只保留文件名。
+func SplitOutRelDir(title, relDir string) (string, string) {
+	relDir = SanitizeRelDir(relDir)
+	title = strings.TrimSpace(strings.ReplaceAll(title, "\\", "/"))
+	if relDir == "" {
+		if i := strings.LastIndex(title, "/"); i >= 0 {
+			relDir = SanitizeRelDir(title[:i])
+			title = title[i+1:]
+		}
+	} else if strings.HasPrefix(title, relDir+"/") {
+		title = strings.TrimPrefix(title, relDir+"/")
+	}
+	if i := strings.LastIndex(title, "/"); i >= 0 {
+		title = title[i+1:]
+	}
+	return FilterFileName(title), relDir
 }
 
 // GetFFmpegPath 获取可用的 FFmpeg 执行路径。

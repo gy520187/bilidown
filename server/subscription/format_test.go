@@ -53,6 +53,27 @@ func TestSelectVideoPrefersHEVC(t *testing.T) {
 	}
 }
 
+func TestVideoAndCodecTags(t *testing.T) {
+	if got := VideoTag(120, 3840, 2160, 12, "hev1.1.6.L153.90"); got != "2160p" {
+		t.Fatalf("2160p got %s", got)
+	}
+	if got := VideoTag(80, 0, 0, 12, ""); got != "1080p" {
+		t.Fatalf("quality fallback got %s", got)
+	}
+	if got := CodecTag(12, "hev1"); got != "H265" {
+		t.Fatalf("hevc got %s", got)
+	}
+	if got := CodecTag(7, "avc1"); got != "H264" {
+		t.Fatalf("avc got %s", got)
+	}
+	if got := AudioTag(true, "flac", true); got != "FLAC" {
+		t.Fatalf("flac got %s", got)
+	}
+	if got := AudioTag(false, "mp4a.40.2", false); got != "AAC" {
+		t.Fatalf("aac got %s", got)
+	}
+}
+
 func TestNFOPathAndRender(t *testing.T) {
 	path := NFOPath("/tmp/demo.mp4")
 	if path != "/tmp/demo.nfo" {
@@ -71,6 +92,39 @@ func TestNFOPathAndRender(t *testing.T) {
 	text := string(body)
 	if !containsAll(text, "标题", "UP", "BV1xx", "https://example.com/cover.jpg", "2023-11-14") {
 		t.Fatalf("missing nfo fields: %s", text)
+	}
+	if !stringContains(text, "<movie>") {
+		t.Fatalf("movie nfo missing root: %s", text)
+	}
+}
+
+func TestRenderEpisodeAndTVShowNFO(t *testing.T) {
+	body, err := RenderEpisodeNFO(NFOData{
+		Title:       "任务开始",
+		ShowTitle:   "间谍过家家",
+		Owner:       "制作委员会",
+		BVID:        "BV1xx",
+		Cover:       "https://example.com/cover.jpg",
+		PublishedAt: 1700000000,
+		Season:      1,
+		Episode:     1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(body)
+	if !containsAll(text, "<episodedetails>", "任务开始", "间谍过家家", "<season>1</season>", "<episode>1</episode>", "BV1xx", "2023-11-14") {
+		t.Fatalf("missing episode nfo fields: %s", text)
+	}
+	show, err := RenderTVShowNFO(NFOData{ShowTitle: "间谍过家家", Owner: "制作委员会", Cover: "https://example.com/cover.jpg"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !containsAll(string(show), "<tvshow>", "间谍过家家", "制作委员会") {
+		t.Fatalf("missing tvshow nfo fields: %s", show)
+	}
+	if p := TVShowNFOPath("/tmp/show/Season 01/ep.mp4"); p != "/tmp/show/tvshow.nfo" {
+		t.Fatalf("tvshow path = %s", p)
 	}
 }
 

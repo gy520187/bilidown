@@ -24,7 +24,7 @@ export class WorkRoute {
         pages: [], owner: { face: '', mid: 0, name: '' },
         dimension: { width: 0, height: 0, rotate: 0 },
         staff: [], status: '', areas: [], styles: [], targetURL: '',
-        section: []
+        section: [], seasonTitle: '', originName: '', year: 0
     })
     /** 标识视频信息卡片应该显示普通视频还是剧集，值为 `hide` 时隐藏卡片 */
     videoInfoCardMode: VideoInfoCardMode = van.state('hide')

@@ -324,11 +324,17 @@ func createDownloadTask(db *sql.DB, client *bilibili.BiliClient, src *Source, re
 	if playInfo.Dash == nil {
 		return errors.New("播放地址缺少 dash")
 	}
-	videoURL, quality, ok := SelectVideo(playInfo.Dash.Video, src.Format, 12)
+	sel, ok := SelectVideoMedia(playInfo.Dash.Video, src.Format, 12)
 	if !ok {
 		return errors.New("未找到对应视频分辨率格式")
 	}
-	audioURL := SelectAudio(playInfo.Dash, true)
+	videoURL := sel.URL
+	quality := sel.Quality
+	audio := SelectAudioMedia(playInfo.Dash, true)
+	audioURL := ""
+	if audio != nil {
+		audioURL = audio.BaseURL
+	}
 	if src.DownloadType != "video" && audioURL == "" {
 		return errors.New("未找到音频地址")
 	}
@@ -343,13 +349,37 @@ func createDownloadTask(db *sql.DB, client *bilibili.BiliClient, src *Source, re
 	if owner == "" {
 		owner = src.Owner
 	}
+	if owner == "" {
+		owner = src.Title
+	}
+	if owner == "" {
+		owner = "Bilibili"
+	}
+	title := util.FilterFileName(item.Title)
+	relDir := ""
+	if src.Type == TypeBangumi {
+		flac := playInfo.Dash.Flac != nil
+		audioCodecs := ""
+		if audio != nil {
+			audioCodecs = audio.Codecs
+		}
+		layout := LayoutFromArchive(src, item, WebDLMeta{
+			OriginName: item.OriginName,
+			Evaluate:   item.Evaluate,
+			Year:       item.Year,
+			VideoTag:   VideoTag(sel.Quality, sel.Width, sel.Height, sel.Codecid, sel.Codecs),
+			VideoCodec: CodecTag(sel.Codecid, sel.Codecs),
+			AudioCodec: AudioTag(true, audioCodecs, flac),
+		})
+		title, relDir = util.SplitOutRelDir(layout.FileStem, layout.RelDir)
+	}
 	_task := task.Task{
 		TaskInDB: task.TaskInDB{
 			TaskInitOption: task.TaskInitOption{
 				Bvid:         item.Bvid,
 				Cid:          item.Cid,
 				Format:       common.MediaFormat(quality),
-				Title:        util.FilterFileName(item.Title),
+				Title:        title,
 				Owner:        owner,
 				Cover:        item.Cover,
 				Status:       "waiting",
@@ -358,6 +388,7 @@ func createDownloadTask(db *sql.DB, client *bilibili.BiliClient, src *Source, re
 				Video:        videoURL,
 				Duration:     item.Duration,
 				DownloadType: src.DownloadType,
+				RelDir:       relDir,
 			},
 		},
 	}

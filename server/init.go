@@ -80,6 +80,7 @@ func mustInitTables() {
 		"folder" text NOT NULL,
 		"duration" integer NOT NULL,
 		"download_type" text NOT NULL DEFAULT 'merge',
+		"rel_dir" text NOT NULL DEFAULT '',
 		"create_at" text NOT NULL DEFAULT CURRENT_TIMESTAMP
 	)`); err != nil {
 		log.Fatalln("create table task:", err)
@@ -112,8 +113,8 @@ func addMissingColumns(db *sql.DB) error {
 	// 使用事务确保操作原子性
 	util.SqliteLock.Lock()
 	_, _ = db.Exec(`ALTER TABLE "task" ADD COLUMN "download_type" TEXT DEFAULT 'merge'`)
-	// 将现有记录中的NULL值更新为默认值'merge'
 	_, _ = db.Exec(`UPDATE "task" SET "download_type" = 'merge' WHERE "download_type" IS NULL`)
+	_, _ = db.Exec(`ALTER TABLE "task" ADD COLUMN "rel_dir" TEXT DEFAULT ''`)
 	util.SqliteLock.Unlock()
 
 	// 忽略错误，因为列可能已经存在

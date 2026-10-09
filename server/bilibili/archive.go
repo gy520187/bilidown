@@ -4,18 +4,28 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"strconv"
+	"time"
 )
 
 type ArchiveItem struct {
-	Bvid     string
-	Cid      int
-	Title    string
-	Cover    string
-	Owner    string
-	PubTime  int64
-	Duration int
-	ItemKey  string
+	Bvid         string
+	Cid          int
+	Title        string
+	Cover        string
+	Owner        string
+	PubTime      int64
+	Duration     int
+	ItemKey      string
+	ShowTitle    string
+	SeasonTitle  string
+	EpisodeTitle string
+	SectionID    string
+	Index        int
+	OriginName   string
+	Evaluate     string
+	Year         int
 }
 
 func (client *BiliClient) ListSeasonArchives(mid int, seasonId int) ([]ArchiveItem, error) {
@@ -246,21 +256,54 @@ type BangumiSection struct {
 	Count int           `json:"count"`
 }
 
-func episodeToArchive(info *SeasonInfo, ep Episode) ArchiveItem {
+func episodeToArchive(info *SeasonInfo, ep Episode, sectionID string, index int) ArchiveItem {
 	title := ep.LongTitle
 	if title == "" {
 		title = ep.Title
 	}
-	return ArchiveItem{
-		Bvid:     ep.Bvid,
-		Cid:      ep.Cid,
-		Title:    title,
-		Cover:    ep.Cover,
-		Owner:    info.Actors,
-		PubTime:  int64(ep.PubTime),
-		Duration: ep.Duration,
-		ItemKey:  fmt.Sprintf("ep_%d", ep.EPID),
+	origin := info.OriginName
+	if origin == "" {
+		origin = info.Subtitle
 	}
+	if origin == "" {
+		origin = info.Alias
+	}
+	return ArchiveItem{
+		Bvid:         ep.Bvid,
+		Cid:          ep.Cid,
+		Title:        title,
+		Cover:        ep.Cover,
+		Owner:        info.Actors,
+		PubTime:      int64(ep.PubTime),
+		Duration:     ep.Duration,
+		ItemKey:      fmt.Sprintf("ep_%d", ep.EPID),
+		ShowTitle:    info.Title,
+		SeasonTitle:  info.SeasonTitle,
+		EpisodeTitle: ep.Title,
+		SectionID:    sectionID,
+		Index:        index,
+		OriginName:   origin,
+		Evaluate:     info.Evaluate,
+		Year:         yearFromPub(info.Publish.PubTime+" "+info.Title+" "+info.Evaluate, int64(ep.PubTime)),
+	}
+}
+
+var reYear = regexp.MustCompile(`(?:19|20)\d{2}`)
+
+func yearFromPub(text string, unix int64) int {
+	if m := reYear.FindString(text); m != "" {
+		n, err := strconv.Atoi(m)
+		if err == nil {
+			return n
+		}
+	}
+	if unix > 0 {
+		y := time.Unix(unix, 0).Year()
+		if y >= 1900 && y <= 2100 {
+			return y
+		}
+	}
+	return 0
 }
 
 func (client *BiliClient) ListBangumiSections(epid int, ssid int) ([]BangumiSection, *SeasonInfo, error) {
@@ -271,8 +314,8 @@ func (client *BiliClient) ListBangumiSections(epid int, ssid int) ([]BangumiSect
 	sections := []BangumiSection{}
 	if len(info.Episodes) > 0 {
 		items := make([]ArchiveItem, 0, len(info.Episodes))
-		for _, ep := range info.Episodes {
-			items = append(items, episodeToArchive(info, ep))
+		for i, ep := range info.Episodes {
+			items = append(items, episodeToArchive(info, ep, "main", i))
 		}
 		sections = append(sections, BangumiSection{ID: "main", Title: "正片", Items: items, Count: len(items)})
 	}
@@ -282,8 +325,8 @@ func (client *BiliClient) ListBangumiSections(epid int, ssid int) ([]BangumiSect
 			title = "其他"
 		}
 		items := make([]ArchiveItem, 0, len(section.Episodes))
-		for _, ep := range section.Episodes {
-			items = append(items, episodeToArchive(info, ep))
+		for j, ep := range section.Episodes {
+			items = append(items, episodeToArchive(info, ep, fmt.Sprintf("section_%d", i), j))
 		}
 		sections = append(sections, BangumiSection{
 			ID:    fmt.Sprintf("section_%d", i),

@@ -6,7 +6,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test:url": "npx --yes tsx src/work/url.test.ts"
+    "test:url": "npx --yes tsx src/work/url.test.ts",
+    "test:emby": "npx --yes tsx src/work/emby.test.ts"
   },
   "keywords": [],
   "author": "",

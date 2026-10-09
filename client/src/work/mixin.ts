@@ -66,6 +66,9 @@ export const start = async (
                 description: info.desc,
                 publishData: new Date(info.pubdate * 1000).toLocaleString(),
                 duration: info.duration,
+                seasonTitle: '',
+                originName: '',
+                year: 0,
                 pages: info.pages.map((page, index) => ({
                     ...page,
                     bvid,
@@ -100,7 +103,10 @@ export const start = async (
                 publishData: new Date().toLocaleDateString(),
                 staff: info.actors.split('\n'),
                 dimension: { height: 0, rotate: 0, width: 0 },
-                title: info.title
+                title: info.title,
+                seasonTitle: info.season_title || '',
+                originName: info.origin_name || info.subtitle || info.alias || '',
+                year: yearFromText(`${info.publish?.pub_time || ''} ${info.title} ${info.evaluate}`)
             }
             workRoute.videoInfoCardMode.val = 'season'
         })
@@ -130,11 +136,19 @@ export const start = async (
                 status: '',
                 styles: [],
                 targetURL: `https://www.bilibili.com/video/${favList[0].bvid}`,
-                title: favList[0].title
+                title: favList[0].title,
+                seasonTitle: '',
+                originName: '',
+                year: 0
             }
             workRoute.videoInfoCardMode.val = 'video'
         })
     }
+}
+
+const yearFromText = (text: string): number => {
+    const m = text.match(/(?:19|20)\d{2}/)
+    return m ? Number(m[0]) : 0
 }
 
 const episodeToPage = (episode: Episode, index: number): PageInParseResult => {

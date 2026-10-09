@@ -169,9 +169,12 @@ type SeasonInfo struct {
 		ID   int    `json:"id"`
 		Name string `json:"name"`
 	} `json:"areas"` // 地区列表
-	Cover    string `json:"cover"`    // 封面
-	Evaluate string `json:"evaluate"` // 简介
-	Publish  struct {
+	Cover      string `json:"cover"`       // 封面
+	Evaluate   string `json:"evaluate"`    // 简介
+	OriginName string `json:"origin_name"` // 原名 / 英文名
+	Subtitle   string `json:"subtitle"`    // 副标题，偶发英文名
+	Alias      string `json:"alias"`       // 别名
+	Publish    struct {
 		IsFinish int    `json:"is_finish"` // 是否完结
 		PubTime  string `json:"pub_time"`  // 发布时间
 	} `json:"publish"`

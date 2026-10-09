@@ -3,6 +3,7 @@ import { Route, goto, now } from 'vanjs-router'
 import { checkLogin, GLOBAL_HAS_LOGIN, GLOBAL_HIDE_PAGE, ResJSON, VanComponent } from '../mixin'
 import { deleteTask, getActiveTask, getTaskList, showFile } from './data'
 import { TaskInDB, TaskStatus } from '../work/type'
+import { taskFileName } from '../work/emby'
 import { LoadingBox } from '../view'
 import { PlayerModalComp } from './playerModal'
 
@@ -46,8 +47,7 @@ export class TaskRoute implements VanComponent {
                     () => _that.loading.val ? LoadingBox() : '',
                     () => div({ class: 'list-group', hidden: _that.loading.val },
                         _that.taskList.val.map(task => {
-                            const ext = task.downloadType === 'audio' ? '.m4a' : '.mp4'
-                            const filename = `${task.title} ${btoa(task.id.toString()).replace(/=/g, '')}${ext}`
+                            const filename = taskFileName(task)
                             return div({
                                 class: () => `list-group-item p-0 hstack user-select-none ${task.statusState.val != 'done' && task.statusState.val != 'error' || task.opening.val ? 'disabled' : ''}`,
                                 hidden: task.deleting,

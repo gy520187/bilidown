@@ -37,6 +37,7 @@ type TaskInitOption struct {
 	Video        string             `json:"video"`
 	Duration     int                `json:"duration"`
 	DownloadType string             `json:"downloadType"`
+	RelDir       string             `json:"relDir,omitempty"`
 }
 
 // TaskInDB 任务数据库中的数据
@@ -51,8 +52,12 @@ func (task *TaskInDB) FilePath() string {
 	if task.DownloadType == "audio" {
 		ext = ".m4a"
 	}
+	title, rel := util.SplitOutRelDir(task.Title, task.RelDir)
+	if rel != "" {
+		return filepath.Join(task.Folder, filepath.FromSlash(rel), title+ext)
+	}
 	return filepath.Join(task.Folder,
-		fmt.Sprintf("%s %s%s", task.Title,
+		fmt.Sprintf("%s %s%s", title,
 			strings.Replace(base64.StdEncoding.EncodeToString([]byte(strconv.FormatInt(task.ID, 10))), "=", "", -1),
 			ext,
 		),
@@ -77,8 +82,8 @@ var OnDone func(task *Task)
 
 func (task *Task) Create(db *sql.DB) error {
 	util.SqliteLock.Lock()
-	result, err := db.Exec(`INSERT INTO "task" ("bvid", "cid", "format", "title", "owner", "cover", "status", "folder", "duration", "download_type")
-	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	result, err := db.Exec(`INSERT INTO "task" ("bvid", "cid", "format", "title", "owner", "cover", "status", "folder", "duration", "download_type", "rel_dir")
+	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		task.Bvid,
 		task.Cid,
 		task.Format,
@@ -89,6 +94,7 @@ func (task *Task) Create(db *sql.DB) error {
 		task.Folder,
 		task.Duration,
 		task.DownloadType,
+		task.RelDir,
 	)
 	util.SqliteLock.Unlock()
 	if err != nil {
@@ -116,6 +122,14 @@ func (task *Task) Start() {
 		return
 	}
 	client := &bilibili.BiliClient{SESSDATA: sessdata}
+
+	task.Title, task.RelDir = util.SplitOutRelDir(task.Title, task.RelDir)
+	if rel := strings.TrimSpace(task.RelDir); rel != "" {
+		if err := os.MkdirAll(filepath.Join(task.Folder, filepath.FromSlash(rel)), 0755); err != nil {
+			task.UpdateStatus(db, "error", fmt.Errorf("os.MkdirAll: %v", err))
+			return
+		}
+	}
 
 	GlobalDownloadSem.Acquire()
 	task.UpdateStatus(db, "running")
@@ -381,7 +395,7 @@ func GetTaskList(db *sql.DB, page int, pageSize int) ([]TaskInDB, error) {
 	util.SqliteLock.Lock()
 	rows, err := db.Query(`SELECT
 		"id", "bvid", "cid", "format", "title",
-		"owner", "cover", "status", "folder", "duration", "download_type", "create_at"
+		"owner", "cover", "status", "folder", "duration", "download_type", "rel_dir", "create_at"
 	FROM "task" ORDER BY "id" DESC LIMIT ?, ?`,
 		page*pageSize, pageSize,
 	)
@@ -391,6 +405,7 @@ func GetTaskList(db *sql.DB, page int, pageSize int) ([]TaskInDB, error) {
 	}
 
 	createAt := ""
+	relDir := sql.NullString{}
 
 	for rows.Next() {
 		task := TaskInDB{}
@@ -406,11 +421,13 @@ func GetTaskList(db *sql.DB, page int, pageSize int) ([]TaskInDB, error) {
 			&task.Folder,
 			&task.Duration,
 			&task.DownloadType,
+			&relDir,
 			&createAt,
 		)
 		if err != nil {
 			return nil, err
 		}
+		task.RelDir = relDir.String
 		task.CreateAt, err = time.Parse("2006-01-02 15:04:05", createAt)
 		if err != nil {
 			return nil, err
@@ -430,10 +447,11 @@ func DeleteTask(db *sql.DB, taskID int) error {
 func GetTask(db *sql.DB, taskID int) (*TaskInDB, error) {
 	task := TaskInDB{}
 	createAt := ""
+	relDir := sql.NullString{}
 	util.SqliteLock.Lock()
 	err := db.QueryRow(`SELECT
 		"id", "bvid", "cid", "format", "title",
-		"owner", "cover", "status", "folder", "duration", "download_type", "create_at"
+		"owner", "cover", "status", "folder", "duration", "download_type", "rel_dir", "create_at"
 	FROM "task" WHERE "id" = ?`,
 		taskID,
 	).Scan(
@@ -448,12 +466,14 @@ func GetTask(db *sql.DB, taskID int) (*TaskInDB, error) {
 		&task.Folder,
 		&task.Duration,
 		&task.DownloadType,
+		&relDir,
 		&createAt,
 	)
 	util.SqliteLock.Unlock()
 	if err != nil {
 		return nil, err
 	}
+	task.RelDir = relDir.String
 
 	task.CreateAt, err = time.Parse("2006-01-02 15:04:05", createAt)
 	if err != nil {

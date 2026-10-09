@@ -3,6 +3,7 @@ import { VanComponent, formatSeconds } from '../../mixin'
 import { PageInParseResult, PlayInfo, VideoFormat } from '../type'
 import { WorkRoute } from '..'
 import { createTask, getPlayInfo } from '../data'
+import { audioTag, bangumiLayout, codecTag, videoTag } from '../emby'
 import PQueue from 'p-queue'
 
 const { a, button, div, input, select, option, label } = van.tags
@@ -138,17 +139,40 @@ export class ParseModalComp implements VanComponent {
             const badgeNotNum = !info.page.badge.match(/^\d+$/)
             const isVideoMode = workRoute.videoInfoCardMode.val == 'video'
             const cardTitle = workRoute.videoInfoCardData.val.title
-            const owner = workRoute.videoInfoCardData.val.staff.length > 0
-                ? workRoute.videoInfoCardData.val.staff[0].split("[")[0].trim()
-                : workRoute.videoInfoCardData.val.owner.name.trim()
-            const activeVideoInfo = getActiveFormatVideo(info.info!, info.info!.accept_quality[info.formatIndex.val], this.preferredCodec.val)
+            const staff0 = workRoute.videoInfoCardData.val.staff.find(s => s.trim())
+            const owner = (staff0 ? staff0.split("[")[0].trim() : workRoute.videoInfoCardData.val.owner.name.trim())
+                || cardTitle.trim()
+                || 'Bilibili'
+            const format = info.info!.accept_quality[info.formatIndex.val]
+            const activeVideoInfo = getActiveFormatVideo(info.info!, format, this.preferredCodec.val)
             const pagesLength = workRoute.videoInfoCardData.val.pages.length
 
+            const isSeasonMode = workRoute.videoInfoCardMode.val == 'season'
+            const sectionTitle = workRoute.allSection.val[workRoute.sectionTabsActiveIndex.val]?.title || ''
+            const extra = isSeasonMode && sectionTitle !== '正片'
+            const flac = !!info.info!.dash.flac
+            const audioCodecs = flac ? info.info!.dash.flac!.audio.codecs : (info.info!.dash.audio[0]?.codecs || '')
+            const layout = isSeasonMode ? bangumiLayout({
+                showTitle: cardTitle,
+                seasonTitle: workRoute.videoInfoCardData.val.seasonTitle,
+                episodeTitle: info.page.badge,
+                longTitle: info.page.part,
+                extra,
+                index: workRoute.sectionPages.val.indexOf(info.page),
+                meta: {
+                    originName: workRoute.videoInfoCardData.val.originName,
+                    evaluate: workRoute.videoInfoCardData.val.description,
+                    year: workRoute.videoInfoCardData.val.year,
+                    videoTag: videoTag(format, activeVideoInfo.width, activeVideoInfo.height),
+                    videoCodec: codecTag(activeVideoInfo.codecid, ''),
+                    audioCodec: audioTag(this.preferHiResAudio.val, audioCodecs, flac),
+                },
+            }) : null
             return ({
                 bvid: info.page.bvid,
                 cid: info.page.cid,
                 cover: workRoute.videoInfoCardData.val.cover,
-                title: (badgeNotNum
+                title: layout ? layout.fileStem : (badgeNotNum
                     ? [
                         info.page.part.trim(),
                         `[${info.page.badge.trim()}]`,
@@ -169,6 +193,7 @@ export class ParseModalComp implements VanComponent {
                 audio: getAudioURL(info.info!, this.preferHiResAudio.val),
                 duration: info.info!.dash.duration,
                 downloadType: this.downloadType.val,
+                relDir: layout ? layout.relDir : '',
                 ...activeVideoInfo
             })
         })).then(() => {
@@ -319,8 +344,7 @@ const getAudioURL = (playInfo: PlayInfo, preferHiRes: boolean = true): string =>
     }
 }
 
-const getActiveFormatVideo = (playInfo: PlayInfo, format: VideoFormat, preferredCodec: 12 | 7 | 13 = 12): { video: string, width: number, height: number } => {
-    // 优先级顺序：用户首选编码格式，然后按默认优先级 12 > 7 > 13
+const getActiveFormatVideo = (playInfo: PlayInfo, format: VideoFormat, preferredCodec: 12 | 7 | 13 = 12): { video: string, width: number, height: number, codecid: number } => {
     const codecOrder = [preferredCodec, 12, 7, 13].filter((value, index, self) => self.indexOf(value) === index)
     for (const code of codecOrder) {
         for (const item of playInfo.dash.video) {
@@ -328,7 +352,8 @@ const getActiveFormatVideo = (playInfo: PlayInfo, format: VideoFormat, preferred
                 return {
                     video: item.baseUrl,
                     width: item.width,
-                    height: item.height
+                    height: item.height,
+                    codecid: item.codecid
                 }
             }
         }
