@@ -1,7 +1,7 @@
 import van from 'vanjs-core'
 import { Route, goto } from 'vanjs-router'
 import { checkLogin, GLOBAL_HAS_LOGIN, VanComponent } from '../mixin'
-import { SaveFolderSetting } from './view'
+import { SaveFolderSetting, PushSetting } from './view'
 import { getFields } from './data'
 import { LoadingBox } from '../view'
 
@@ -15,7 +15,13 @@ export class SettingRoute implements VanComponent {
     loading = van.state(true)
 
     fields = {
-        download_folder: van.state('')
+        download_folder: van.state(''),
+        push_enabled: van.state(''),
+        push_channel: van.state(''),
+        push_url: van.state(''),
+        push_token: van.state(''),
+        push_target_type: van.state(''),
+        push_target_id: van.state('')
     }
 
     constructor() {
@@ -33,6 +39,7 @@ export class SettingRoute implements VanComponent {
                     () => _that.loading.val ? LoadingBox() : '',
                     () => _that.loading.val ? '' : div({ class: 'vstack gap-4' },
                         SaveFolderSetting(_that),
+                        PushSetting(_that),
                         div({ class: 'hstack gap-3' },
                             button({
                                 class: 'btn btn-outline-secondary', onclick() {
@@ -61,7 +68,9 @@ export class SettingRoute implements VanComponent {
                 _that.loading.val = true
                 getFields().then(fields => {
                     for (const key in fields) {
-                        _that.fields[key as keyof Fields].val = fields[key as keyof Fields]
+                        const value = fields[key as keyof Fields]
+                        if (value === undefined) continue
+                        _that.fields[key as keyof Fields].val = value
                     }
 
                     setTimeout(() => {

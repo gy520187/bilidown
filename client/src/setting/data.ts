@@ -18,3 +18,22 @@ export const saveFields = async (fields: [string, string][]) => {
     if (!res.success) throw new Error(res.message)
     return res.message
 }
+
+export interface PushTestBody {
+    url: string
+    token: string
+    target_type: string
+    target_id: string
+}
+
+export const pushTest = async (body: PushTestBody) => {
+    const res = await fetch('/api/pushTest', {
+        method: 'POST',
+        body: JSON.stringify(body),
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    }).then(res => res.json()) as ResJSON
+    if (!res.success) throw new Error(res.message)
+    return res.message
+}

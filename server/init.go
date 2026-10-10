@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"path/filepath"
 	"time"
 
+	"bilidown/push"
 	"bilidown/router"
 	"bilidown/subscription"
 	"bilidown/task"
@@ -98,7 +100,13 @@ func mustInitTables() {
 		log.Fatalln("subscription.InitTables:", err)
 	}
 
-	task.OnDone = subscription.WriteTaskNFO
+	task.OnDone = func(t *task.Task) {
+		subscription.WriteTaskNFO(t)
+		push.TaskDoneAsync(t.Title, filepath.Base(t.TaskInDB.FilePath()))
+	}
+	task.OnFail = func(t *task.Task, errMsg string) {
+		push.TaskErrorAsync(t.Title, errMsg)
+	}
 
 	// 添加可能缺失的列（用于数据库迁移）
 	if err := addMissingColumns(db); err != nil {

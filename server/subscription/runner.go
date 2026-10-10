@@ -9,6 +9,7 @@ import (
 
 	"bilidown/bilibili"
 	"bilidown/common"
+	"bilidown/push"
 	"bilidown/task"
 	"bilidown/util"
 )
@@ -29,6 +30,7 @@ func CheckOne(db *sql.DB, src *Source, firstRun bool) error {
 	}
 	now := time.Now().Unix()
 	var lastErr error
+	created := 0
 	for _, item := range items {
 		exists, err := ItemExists(db, src.ID, item.ItemKey)
 		if err != nil {
@@ -59,6 +61,10 @@ func CheckOne(db *sql.DB, src *Source, firstRun bool) error {
 			lastErr = err
 			continue
 		}
+		created++
+	}
+	if created > 0 {
+		push.SubscriptionUpdatedAsync(src.Title, created)
 	}
 	status := "success"
 	msg := ""

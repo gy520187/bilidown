@@ -39,6 +39,7 @@ func API() *http.ServeMux {
 	router.HandleFunc("/updateSubscription", updateSubscription)
 	router.HandleFunc("/deleteSubscription", deleteSubscription)
 	router.HandleFunc("/runSubscriptionCheck", runSubscriptionCheck)
+	router.HandleFunc("/pushTest", pushTest)
 	return router
 }
 

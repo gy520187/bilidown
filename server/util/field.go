@@ -5,12 +5,24 @@ type FieldUtil struct{}
 func (f FieldUtil) AllowSelect() []string {
 	return []string{
 		"download_folder",
+		"push_enabled",
+		"push_channel",
+		"push_url",
+		"push_token",
+		"push_target_type",
+		"push_target_id",
 	}
 }
 
 func (f FieldUtil) AllowUpdate() []string {
 	return []string{
 		"download_folder",
+		"push_enabled",
+		"push_channel",
+		"push_url",
+		"push_token",
+		"push_target_type",
+		"push_target_id",
 	}
 }
 
