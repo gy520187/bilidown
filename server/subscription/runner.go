@@ -55,7 +55,7 @@ func CheckOne(db *sql.DB, src *Source, firstRun bool) error {
 		if !ShouldCreateTask(firstRun, item.PubTime, now) {
 			continue
 		}
-		if err := createDownloadTask(db, client, src, record, item); err != nil {
+		if _, err := createDownloadTask(db, client, src, record, item); err != nil {
 			record.NfoError = err.Error()
 			_ = UpdateItemNfoError(db, record.ID, err.Error())
 			lastErr = err
@@ -187,7 +187,7 @@ func ResolvePreview(client *bilibili.BiliClient, parsed ParsedSource) (*Preview,
 		ResourceID:   parsed.ResourceID,
 		Enabled:      true,
 		DownloadType: "merge",
-		Format:       80,
+		Format:       127,
 		Cron:         DefaultCron,
 	}
 	preview := &Preview{Source: src, Sections: []PreviewSection{}}
@@ -319,20 +319,20 @@ func fillFromFirst(client *bilibili.BiliClient, src *Source, items []bilibili.Ar
 	return nil
 }
 
-func createDownloadTask(db *sql.DB, client *bilibili.BiliClient, src *Source, record *Item, item bilibili.ArchiveItem) error {
+func createDownloadTask(db *sql.DB, client *bilibili.BiliClient, src *Source, record *Item, item bilibili.ArchiveItem) (*task.Task, error) {
 	if err := client.FillArchiveDetail(&item); err != nil {
-		return err
+		return nil, err
 	}
 	playInfo, err := client.GetPlayInfo(item.Bvid, item.Cid)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if playInfo.Dash == nil {
-		return errors.New("播放地址缺少 dash")
+		return nil, errors.New("播放地址缺少 dash")
 	}
 	sel, ok := SelectVideoMedia(playInfo.Dash.Video, src.Format, 12)
 	if !ok {
-		return errors.New("未找到对应视频分辨率格式")
+		return nil, errors.New("未找到对应视频分辨率格式")
 	}
 	videoURL := sel.URL
 	quality := sel.Quality
@@ -342,14 +342,14 @@ func createDownloadTask(db *sql.DB, client *bilibili.BiliClient, src *Source, re
 		audioURL = audio.BaseURL
 	}
 	if src.DownloadType != "video" && audioURL == "" {
-		return errors.New("未找到音频地址")
+		return nil, errors.New("未找到音频地址")
 	}
 	if src.DownloadType == "audio" {
 		videoURL = audioURL
 	}
 	folder, err := util.GetCurrentFolder(db)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	owner := item.Owner
 	if owner == "" {
@@ -399,13 +399,60 @@ func createDownloadTask(db *sql.DB, client *bilibili.BiliClient, src *Source, re
 		},
 	}
 	if err := _task.Create(db); err != nil {
-		return err
+		return nil, err
 	}
 	if err := UpdateItemTask(db, record.ID, _task.ID); err != nil {
-		return err
+		return nil, err
 	}
 	go _task.Start()
-	return nil
+	return &_task, nil
+}
+
+// ForceDownloadLatest 强制下载订阅源的最新一集，即使该集已存在也重新下载。
+func ForceDownloadLatest(db *sql.DB, id int64) (*task.Task, error) {
+	client, err := loggedClient(db)
+	if err != nil {
+		return nil, err
+	}
+	src, err := GetSource(db, id)
+	if err != nil {
+		return nil, err
+	}
+	items, _, err := listSourceItems(client, src)
+	if err != nil {
+		return nil, err
+	}
+	if len(items) == 0 {
+		return nil, errors.New("订阅源暂无内容")
+	}
+	latest := items[len(items)-1]
+	record, err := getOrCreateItem(db, src.ID, latest)
+	if err != nil {
+		return nil, err
+	}
+	return createDownloadTask(db, client, src, record, latest)
+}
+
+func getOrCreateItem(db *sql.DB, subscriptionID int64, item bilibili.ArchiveItem) (*Item, error) {
+	record, err := GetItemByKey(db, subscriptionID, item.ItemKey)
+	if err == nil {
+		return record, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return nil, err
+	}
+	record = &Item{
+		SubscriptionID: subscriptionID,
+		ItemKey:        item.ItemKey,
+		Bvid:           item.Bvid,
+		Cid:            item.Cid,
+		Title:          item.Title,
+		PublishedAt:    item.PubTime,
+	}
+	if err := InsertItem(db, record); err != nil {
+		return nil, err
+	}
+	return record, nil
 }
 
 func loggedClient(db *sql.DB) (*bilibili.BiliClient, error) {

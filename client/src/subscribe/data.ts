@@ -84,6 +84,7 @@ export const updateSubscription = async (payload: {
     downloadType?: SubscriptionSource['downloadType']
     format?: number
     cron?: string
+    sectionIds?: string[]
 }) => {
     const res = await fetch('/api/updateSubscription', {
         method: 'POST',
@@ -91,6 +92,21 @@ export const updateSubscription = async (payload: {
         body: JSON.stringify(payload),
     }).then(r => r.json()) as ResJSON
     if (!res.success) throw new Error(res.message)
+}
+
+export const buildSubscriptionURL = (item: SubscriptionSource): string => {
+    switch (item.type) {
+        case 'season':
+            return `https://space.bilibili.com/${item.mid}/channel/collectiondetail?sid=${item.resourceId}`
+        case 'series':
+            return `https://space.bilibili.com/${item.mid}/channel/seriesdetail?sid=${item.resourceId}`
+        case 'fav':
+            return `https://www.bilibili.com/list/ml${item.resourceId}`
+        case 'space':
+            return `https://space.bilibili.com/${item.resourceId}`
+        case 'bangumi':
+            return `https://www.bilibili.com/bangumi/play/ss${item.resourceId}`
+    }
 }
 
 export const deleteSubscription = async (id: number) => {
@@ -101,5 +117,10 @@ export const deleteSubscription = async (id: number) => {
 export const runSubscriptionCheck = async (id?: number) => {
     const query = id ? `?id=${id}` : ''
     const res = await fetch(`/api/runSubscriptionCheck${query}`, { method: 'POST' }).then(r => r.json()) as ResJSON
+    if (!res.success) throw new Error(res.message)
+}
+
+export const forceDownloadLatest = async (id: number) => {
+    const res = await fetch(`/api/forceDownloadLatest?id=${id}`, { method: 'POST' }).then(r => r.json()) as ResJSON
     if (!res.success) throw new Error(res.message)
 }

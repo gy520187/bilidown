@@ -137,11 +137,12 @@ func createSubscription(w http.ResponseWriter, r *http.Request) {
 }
 
 type updateSubscriptionBody struct {
-	ID           int64  `json:"id"`
-	Enabled      *bool  `json:"enabled"`
-	DownloadType string `json:"downloadType"`
-	Format       int    `json:"format"`
-	Cron         string `json:"cron"`
+	ID           int64    `json:"id"`
+	Enabled      *bool    `json:"enabled"`
+	DownloadType string   `json:"downloadType"`
+	Format       int      `json:"format"`
+	Cron         *string  `json:"cron"`
+	SectionIDs   []string `json:"sectionIds"`
 }
 
 func updateSubscription(w http.ResponseWriter, r *http.Request) {
@@ -158,15 +159,26 @@ func updateSubscription(w http.ResponseWriter, r *http.Request) {
 		res_error.Send(w, res_error.ParamError)
 		return
 	}
-	if body.Cron != "" {
-		if err := subscription.ValidateCron(body.Cron); err != nil {
+	if body.Cron != nil && *body.Cron != "" {
+		if err := subscription.ValidateCron(*body.Cron); err != nil {
 			util.Res{Success: false, Message: "cron 表达式格式错误"}.Write(w)
 			return
 		}
 	}
 	db := util.MustGetDB()
 	defer db.Close()
-	if err := subscription.UpdateSource(db, body.ID, body.Enabled, body.DownloadType, body.Format, body.Cron); err != nil {
+	sectionIDs := body.SectionIDs
+	if sectionIDs != nil {
+		src, err := subscription.GetSource(db, body.ID)
+		if err != nil {
+			util.Res{Success: false, Message: err.Error()}.Write(w)
+			return
+		}
+		if src.Type == subscription.TypeBangumi && len(sectionIDs) == 0 {
+			sectionIDs = []string{"main"}
+		}
+	}
+	if err := subscription.UpdateSource(db, body.ID, body.Enabled, body.DownloadType, body.Format, body.Cron, sectionIDs); err != nil {
 		util.Res{Success: false, Message: err.Error()}.Write(w)
 		return
 	}
@@ -219,4 +231,27 @@ func runSubscriptionCheck(w http.ResponseWriter, r *http.Request) {
 	}
 	go subscription.RunCheck(onlyID)
 	util.Res{Success: true, Message: "已开始检查"}.Write(w)
+}
+
+func forceDownloadLatest(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		res_error.Send(w, res_error.MethodNotAllowError)
+		return
+	}
+	if _, ok := requireLoginClient(w); !ok {
+		return
+	}
+	id, err := strconv.ParseInt(r.URL.Query().Get("id"), 10, 64)
+	if err != nil || id == 0 {
+		res_error.Send(w, res_error.ParamError)
+		return
+	}
+	db := util.MustGetDB()
+	defer db.Close()
+	t, err := subscription.ForceDownloadLatest(db, id)
+	if err != nil {
+		util.Res{Success: false, Message: err.Error()}.Write(w)
+		return
+	}
+	util.Res{Success: true, Message: "已开始下载最新一集", Data: map[string]interface{}{"taskId": t.ID, "title": t.Title}}.Write(w)
 }

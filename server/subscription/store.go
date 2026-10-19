@@ -248,7 +248,7 @@ func CreateSource(db *sql.DB, src *Source) error {
 	return err
 }
 
-func UpdateSource(db *sql.DB, id int64, enabled *bool, downloadType string, format int, cron string) error {
+func UpdateSource(db *sql.DB, id int64, enabled *bool, downloadType string, format int, cron *string, sectionIDs []string) error {
 	src, err := GetSource(db, id)
 	if err != nil {
 		return err
@@ -262,16 +262,19 @@ func UpdateSource(db *sql.DB, id int64, enabled *bool, downloadType string, form
 	if format != 0 {
 		src.Format = format
 	}
-	if cron != "" {
-		src.Cron = SourceCron(cron)
+	if cron != nil {
+		src.Cron = SourceCron(*cron)
+	}
+	if sectionIDs != nil {
+		src.SectionIDs = sectionIDs
 	}
 	flag := 0
 	if src.Enabled {
 		flag = 1
 	}
 	util.SqliteLock.Lock()
-	_, err = db.Exec(`UPDATE "subscription" SET "enabled" = ?, "download_type" = ?, "format" = ?, "cron" = ? WHERE "id" = ?`,
-		flag, src.DownloadType, src.Format, src.Cron, id)
+	_, err = db.Exec(`UPDATE "subscription" SET "enabled" = ?, "download_type" = ?, "format" = ?, "cron" = ?, "section_ids" = ? WHERE "id" = ?`,
+		flag, src.DownloadType, src.Format, src.Cron, encodeSectionIDs(src.SectionIDs), id)
 	util.SqliteLock.Unlock()
 	return err
 }
@@ -360,6 +363,19 @@ func GetItemByTaskID(db *sql.DB, taskID int64) (*Item, error) {
 	util.SqliteLock.Lock()
 	row := db.QueryRow(`SELECT "id", "subscription_id", "item_key", "bvid", "cid", "title", "published_at", "task_id", "nfo_error"
 		FROM "subscription_item" WHERE "task_id" = ?`, taskID)
+	util.SqliteLock.Unlock()
+	var item Item
+	err := row.Scan(&item.ID, &item.SubscriptionID, &item.ItemKey, &item.Bvid, &item.Cid, &item.Title, &item.PublishedAt, &item.TaskID, &item.NfoError)
+	if err != nil {
+		return nil, err
+	}
+	return &item, nil
+}
+
+func GetItemByKey(db *sql.DB, subscriptionID int64, itemKey string) (*Item, error) {
+	util.SqliteLock.Lock()
+	row := db.QueryRow(`SELECT "id", "subscription_id", "item_key", "bvid", "cid", "title", "published_at", "task_id", "nfo_error"
+		FROM "subscription_item" WHERE "subscription_id" = ? AND "item_key" = ?`, subscriptionID, itemKey)
 	util.SqliteLock.Unlock()
 	var item Item
 	err := row.Scan(&item.ID, &item.SubscriptionID, &item.ItemKey, &item.Bvid, &item.Cid, &item.Title, &item.PublishedAt, &item.TaskID, &item.NfoError)

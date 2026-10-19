@@ -5,6 +5,7 @@ import { LoadingBox } from '../view'
 import {
     createSubscription,
     deleteSubscription,
+    forceDownloadLatest,
     getSubscriptions,
     previewSubscription,
     runSubscriptionCheck,
@@ -15,6 +16,7 @@ import {
     type SubscriptionPreview,
     type SubscriptionSource
 } from './data'
+import { ReconfigureModal } from './reconfigureModal'
 
 const { button, div, input, option, select, span, img, label } = van.tags
 
@@ -49,7 +51,7 @@ export class SubscribeRoute implements VanComponent {
     list: State<SubscriptionSource[]> = van.state([])
     urlValue = van.state('')
     downloadType = van.state<'merge' | 'audio' | 'video'>('merge')
-    format = van.state(80)
+    format = van.state(127)
     cronValue = van.state(DEFAULT_CRON)
     preview: State<SubscriptionPreview | null> = van.state(null)
     selectedSections: State<string[]> = van.state([])
@@ -248,7 +250,6 @@ export class SubscribeRoute implements VanComponent {
 
     ItemCard(item: SubscriptionSource) {
         const _that = this
-        const cronDraft = van.state(item.cron || DEFAULT_CRON)
         const statusText = statusLabel[item.lastCheckStatus] || (item.lastCheckStatus || '未检查')
         const sectionText = sectionLabel(item)
         return div({ class: 'card card-body rounded-4' },
@@ -264,44 +265,13 @@ export class SubscribeRoute implements VanComponent {
                     div({ class: 'small text-secondary' },
                         `${typeLabel[item.type]} · ${item.owner || '未知'} · 已记录 ${item.itemCount} 条 · 分区 ${sectionText}`
                     ),
+                    div({ class: 'small text-secondary' }, `定时：${item.cron || DEFAULT_CRON} · 在「重新配置」中修改`),
                     div({ class: 'small' },
                         span({ class: item.lastCheckStatus == 'error' || item.lastCheckStatus == 'need_login' ? 'text-danger' : 'text-secondary' },
                             `最近检查：${item.lastCheckAt || '尚未检查'} · ${statusText}`
                         )
                     ),
-                    item.lastError ? div({ class: 'small text-danger' }, item.lastError) : '',
-                    div({ class: 'input-group input-group-sm mt-1', style: 'max-width: 420px' },
-                        input({
-                            class: 'form-control',
-                            value: cronDraft,
-                            oninput: (e: Event) => cronDraft.val = (e.target as HTMLInputElement).value
-                        }),
-                        button({
-                            class: 'btn btn-outline-success',
-                            async onclick() {
-                                const expr = cronDraft.val.trim()
-                                if (!expr) return alert('请输入 cron 表达式')
-                                try {
-                                    await updateSubscription({ id: item.id, cron: expr })
-                                    await _that.refresh()
-                                } catch (error) {
-                                    if (error instanceof Error) alert(error.message)
-                                }
-                            }
-                        }, '保存计划'),
-                        button({
-                            class: 'btn btn-outline-primary',
-                            async onclick() {
-                                try {
-                                    await runSubscriptionCheck(item.id)
-                                    alert('已开始检查该订阅')
-                                    setTimeout(() => { _that.refresh().catch(() => { }) }, 1500)
-                                } catch (error) {
-                                    if (error instanceof Error) alert(error.message)
-                                }
-                            }
-                        }, '立即检查')
-                    )
+                    item.lastError ? div({ class: 'small text-danger' }, item.lastError) : ''
                 ),
                 div({ class: 'vstack gap-2', style: 'min-width: 96px' },
                     button({
@@ -315,6 +285,37 @@ export class SubscribeRoute implements VanComponent {
                             }
                         }
                     }, item.enabled ? '停用' : '启用'),
+                    button({
+                        class: 'btn btn-sm btn-outline-primary',
+                        onclick() {
+                            new ReconfigureModal(item, () => { _that.refresh() }).show()
+                        }
+                    }, '重新配置'),
+                    button({
+                        class: 'btn btn-sm btn-outline-primary',
+                        async onclick() {
+                            try {
+                                await runSubscriptionCheck(item.id)
+                                alert('已开始检查该订阅')
+                                setTimeout(() => { _that.refresh().catch(() => { }) }, 1500)
+                            } catch (error) {
+                                if (error instanceof Error) alert(error.message)
+                            }
+                        }
+                    }, '立即检查'),
+                    button({
+                        class: 'btn btn-sm btn-outline-primary',
+                        async onclick() {
+                            if (!confirm(`强制下载「${item.title}」的最新一集？即使已下载也会重新下载。`)) return
+                            try {
+                                await forceDownloadLatest(item.id)
+                                alert('已开始下载最新一集')
+                                setTimeout(() => { _that.refresh().catch(() => { }) }, 1500)
+                            } catch (error) {
+                                if (error instanceof Error) alert(error.message)
+                            }
+                        }
+                    }, '下载最新'),
                     button({
                         class: 'btn btn-sm btn-outline-danger',
                         async onclick() {
